@@ -1,3 +1,6 @@
+#include <IL/il.h>
+#include <IL/ilu.h>
+
 #define GLEW_STATIC
 #include <GL/glew.h>
 
@@ -96,6 +99,9 @@ bool Window_New() {
 
   glewExperimental = GL_TRUE;
   glewInit();
+
+  ilInit();
+	iluInit();
 
   return true;
 }
@@ -263,14 +269,42 @@ void ShaderProgram_SetAttribs(GLuint program, const GLchar *name, GLint *attrib,
   va_end(args);
 }
 
+GLuint Texture_FromFile(const char *path) {
+	ILuint img = 0;
+	ilGenImages(1, &img);
+	ilBindImage(img);
+
+	ilLoadImage(path);
+
+	if (!ilConvertImage(IL_RGBA, IL_UNSIGNED_BYTE)) Panic(1, "image not converted");
+
+	GLuint texture;
+	glGenTextures(1, &texture);
+	glBindTexture(GL_TEXTURE_2D, texture);
+	GLuint width = ilGetInteger(IL_IMAGE_WIDTH), height = ilGetInteger(IL_IMAGE_HEIGHT);
+	GLuint *pixels = (GLuint *) ilGetData();
+
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+	return texture;
+
+	return 0;
+}
+
 int main(int argc, char *argv[]) {
   Window_New();
 
-  GLfloat vertices[] = {
-          -0.5f,  0.5f, 1.0f, 0.0f, 0.0f, // Top-left
-           0.5f,  0.5f, 0.0f, 1.0f, 0.0f, // Top-right
-           0.5f, -0.5f, 0.0f, 0.0f, 1.0f, // Bottom-right
-          -0.5f, -0.5f, 1.0f, 1.0f, 1.0f  // Bottom-left
+  float vertices[] = {
+    //  Position      Color             Texcoords
+    -0.5f,  0.5f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, // Top-left
+     0.5f,  0.5f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, // Top-right
+     0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, // Bottom-right
+    -0.5f, -0.5f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f  // Bottom-left
   };
 
   GLuint vao = Vao_New();
@@ -297,14 +331,15 @@ int main(int argc, char *argv[]) {
   Panic_on_glGetError("link/use program");
 
   // Specify the layout of the vertex data
-  GLint position;
-  GLint color;
+  GLint position, color, texcoord;
   ShaderProgram_SetAttribs(program,
     "position", &position, 2,
     "color", &color, 3,
+    "texcoord", &texcoord, 2,
     NULL, NULL, 0
   );
 
+  GLuint texture = Texture_FromFile("./myke.png");
   Window_Event();
 
   Window_Destroy();
