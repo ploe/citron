@@ -4,8 +4,13 @@
 #define GLEW_STATIC
 #include <GL/glew.h>
 
+#ifdef __linux
+#include <SDL2/SDL.h>
+#include <SDL_opengl.h>
+#elif __APPLE__
 #include <SDL.h>
 #include <SDL_opengl.h>
+#endif
 
 SDL_Window *window;
 SDL_GLContext context;
@@ -23,7 +28,7 @@ void Panic(int code, const char *format, ...) {
   vprintf (format, args);
   va_end (args);
 
-  exit(code);
+  abort();
 }
 static const char *ErrorString(GLenum error) {
   switch (error) {
@@ -148,7 +153,7 @@ GLuint Shader_FromFile(const char *filename, GLenum shaderType) {
   if (!status) {
     char log[512];
     glGetShaderInfoLog(shader, sizeof(log), NULL, log);
-    Panic(1, log);
+    Panic(1, "%s: %s\n", filename, log);
   }
 
   return shader;
@@ -209,22 +214,22 @@ GLuint Ebo_New(GLsizeiptr size, const GLvoid *data) {
 }
 
 GLint ShaderProgram_SetAttrib(GLuint program, const GLchar *name, GLint size, GLsizei stride, unsigned long offset) {
+  puts(name);
+
   GLint index = glGetAttribLocation(program, name);
+  Panic_on_glGetError("ShaderProgram_SetAttrib/glGetAttribLocation");
+
   glEnableVertexAttribArray(index);
+  Panic_on_glGetError("ShaderProgram_SetAttrib/glEnableVertexAttribArray");
 
   stride *=  sizeof(GLfloat);
-
   unsigned long pointer = offset * sizeof(GLfloat);
-  glVertexAttribPointer(index, size, GL_FLOAT, GL_FALSE, stride, (const GLvoid *) pointer);
 
-  Panic_on_glGetError("ShaderProgram_SetAttrib");
+  glVertexAttribPointer(index, size, GL_FLOAT, GL_FALSE, stride, (const GLvoid *) pointer);
+  Panic_on_glGetError("ShaderProgram_SetAttrib/glVertexAttribPointer");
+
   return index;
 }
-
-typedef struct ShaderProgram {
-  ;
-  unsigned long offset;
-} ShaderProgram;
 
 static void GetAttribFromArgs(va_list args, const GLchar **name, GLint **attrib, GLint *size) {
   *name = (const char *) va_arg(args, const char *);
@@ -316,8 +321,6 @@ int main(int argc, char *argv[]) {
   };
 
   GLuint ebo = Ebo_New(sizeof(elements), elements);
-
-  ShaderProgram sp;
 
   GLuint program = ShaderProgram_New(
     "./shader.vert", &vertexShader, GL_VERTEX_SHADER,
